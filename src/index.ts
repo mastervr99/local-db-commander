@@ -47,6 +47,42 @@ server.registerTool(
     }
 );
 
+server.registerTool(
+    "list_items",
+    {
+        description: "Afficher la liste de tous les articles dans l'inventaire",
+        inputSchema: z.object({}),
+    },
+    async () => {
+        try {
+            console.error("Lecture de l'inventaire demandée par Claude.");
+
+            const result = await pool.query("SELECT * FROM inventory ORDER BY name ASC");
+
+            if(result.rows.length === 0){
+                return {
+                    content: [{ type: "text", text: "L'inventaire ne contient aucun article. Souhaitez-vous le remplir ?"}],
+                };
+            }
+
+            const textList = result.rows
+            .map((item) => `- [ID: ${item.id}] ${item.name} (Quantité : ${item.quantity })`)
+            .join("\n");
+
+            return {
+                content: [{ type: "text", text: `Voici le contenu actuel de l'inventaire :\n${textList}`}],
+            };
+            
+        } catch (error) {
+            console.error("Erreur lors de la lecture SQL :", error);
+
+            return {
+                content: [{ type: "text", text: `Erreur SQL lors de la lecture : ${(error as Error).message}`}],
+            };
+        }
+    }
+);
+
 async function main() {
 
     const transport = new StdioServerTransport();
