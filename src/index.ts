@@ -83,6 +83,82 @@ server.registerTool(
     }
 );
 
+server.registerTool(
+    "update_stock",
+    {
+        description: "Modifier la quantité en stock d'un article existant dans l'inventaire avec son ID",
+        inputSchema: z.object({
+            id: z.number().int().positive().describe("L'ID unique de l'article à modifier"),
+            new_quantity: z.number().int().positive().describe("La nouvelle quantité totale en stock"),
+        }),
+    },
+    async (args) => {
+        try {
+
+            console.error(`Mise à jour de l'article ID ${args.id} à ${args.new_quantity} unités.`);
+
+            const result = await pool.query(
+                "UPDATE inventory SET quantity = $1 WHERE id = $2 RETURNING *",
+                [args.new_quantity, args.id]
+            );
+
+            if(result.rowCount === 0) {
+                return {
+                    content: [{ type:"text", text:`Erreur : Aucun article trouvé avec l'ID ${args.id}.`}],
+                };
+            }
+
+            return {
+                content: [{ type:"text", text:`Succès : l'article "${result.rows[0].namme}" (ID : ${args.id}) a maintenant une quantité de ${args.new_quantity}.`}],
+            };
+            
+        } catch (error) {
+            console.error("Erreur lors de l'UPDATE SQL:", error);
+
+            return {
+                content: [{ type: "text", text: `Erreur SQL lors de la mise à jour : ${(error as Error).message}`}],
+            };
+        }
+    }
+);
+
+server.registerTool(
+    "delete_item",
+    {
+        description: "Supprimer définitivement un article de l'inventaire grâce à son ID",
+        inputSchema: z.object({
+            id:z.number().int().positive().describe("L'ID unique de l'article à supprimer")
+        }),
+    },
+    async (args) => {
+        try {
+            console.error(`Suppression définitive de l'article avec ID ${args.id}`);
+
+            const deletion_result = await pool.query(
+                "DELETE FROM inventory WHERE id = $1 RETURNING *",
+                [args.id]
+            );
+
+            if(deletion_result.rowCount === 0){
+                return {
+                    content: [{ type:"text", text:`Aucun article trouvé avec l'ID ${args.id}.`}]
+                }
+            }
+
+            return {
+                content: [{ type:"text", text:`Succès : l'article "${deletion_result.rows[0].name}" (ID:${args.id}) a été définitivement supprimé de l'inventaire.`}]
+            }
+
+        } catch (error) {
+            console.error("Erreur lors du DELETE SQL :", error);
+
+            return {
+                content:[{type:"text", text:`Erreur SQL lors de la suppresion : ${error as Error}.message`}]
+            }
+        }
+    }
+);
+
 async function main() {
 
     const transport = new StdioServerTransport();
