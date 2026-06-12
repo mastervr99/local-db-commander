@@ -18,6 +18,61 @@ const server = new McpServer({
     version: "1.0.0",
 });
 
+server.registerResource(
+    "database-schema",
+    "schema://inventory",
+    {
+        description: "Expose la structure technique en lecture seule de la table inventory",
+    },
+    async (uri) => {
+        const schemaDetails = {
+            tablename: "inventory",
+            columns: {
+                id: "SERIAL PRIMARY KEY (identifiant unique généré automatiquement)",
+                name: "TEXT NOT NULL (nom du produit ou de la référence)",
+                quantity: "INTEGER NOT NULL (quantité totale actuellement en stock)"
+            }
+        };
+
+        return {
+            contents: [{
+                uri: uri.href,
+                mimeType: "application/json",
+                text: JSON.stringify(schemaDetails, null, 2)
+            }]
+        }
+    }
+);
+
+server.registerPrompt(
+    "audit-stock-critique",
+    {
+        description: "prépare un promt d'analyse pour réperer les anomalies et ruptures de stock",
+        argsSchema: ({
+            seuil: z.string().optional().describe("Le niveau en dessous duquel un stock est considéré comme critique (Défaut = 5)")
+        })
+    },
+    (args) => {
+        const seuilCritique = args.seuil ?? "5";
+        
+        return {
+            messages: [
+                {
+                    role: "user",
+                    content: {
+                        type: "text",
+                        text: `Agis en tant que Directeur logistique.
+                        1. Utilise l'outil 'list_items' pour analyser notre stock (page par page si nécessaire pour tout voir).
+                        2. Identifie tous les articles dont la quantité est tstrictement inférieure à ${seuilCritique}.
+                        3. Propose une stratégie de réapprovisionnement d'urgence sous forme de tableau Markdown clair.
+                        4. S'il y a des incohérences ou des doublons évidents dans la base, remonte-les moi.`
+                    }
+                }
+            ]
+        };
+    }
+);
+
 server.registerTool(
     "add_item",
     {
@@ -51,13 +106,22 @@ server.registerTool(
     "list_items",
     {
         description: "Afficher la liste de tous les articles dans l'inventaire",
-        inputSchema: z.object({}),
+        inputSchema: z.object({
+            page: z.number().int().positive().optional().default(1).describe("Numéro de la page à afficher"),
+            limit: z.number().int().positive().max(50).optional().default(10).describe("Nombre maximum d'éléments affichés par page (Max 50)"),
+        }),
     },
-    async () => {
+    async (args) => {
         try {
-            console.error("Lecture de l'inventaire demandée par Claude.");
+            console.error(`Lecture de l'inventaire demandée par Claude (Page : ${args.page}, Limite: ${args.limit}).`);
 
-            const result = await pool.query("SELECT * FROM inventory ORDER BY name ASC");
+            const offset = (args.page - 1) * args.limit;
+
+            const result = await pool.query("SELECT * FROM inventory ORDER BY name ASC LIMIT $1 OFFSET $2", [args.limit, offset]);
+
+            const countResult = await pool.query("SELECT COUNT(*) FROM inventory");
+            const totalItems = parseInt(countResult.rows[0].count, 10);
+            const totalPages = Math.ceil(totalItems / args.limit);
 
             if(result.rows.length === 0){
                 return {
@@ -66,8 +130,13 @@ server.registerTool(
             }
 
             const textList = result.rows
-            .map((item) => `- [ID: ${item.id}] ${item.name} (Quantité : ${item.quantity })`)
-            .join("\n");
+                .map((item) => `- [ID: ${item.id}] ${item.name} (Quantité : ${item.quantity })`)
+                .join("\n");
+
+            const metadata = `\n\n[Page ${args.page}/${totalPages} | Total articles : ${totalItems}]`;
+            const paginationHint = args.page < totalPages
+                ? "\n(Note : Il reste d'autres articles disponibles. Demande explicitement la page suivante si tu as besoin de voir la suite.)"
+                : "";
 
             return {
                 content: [{ type: "text", text: `Voici le contenu actuel de l'inventaire :\n${textList}`}],
@@ -109,7 +178,7 @@ server.registerTool(
             }
 
             return {
-                content: [{ type:"text", text:`Succès : l'article "${result.rows[0].namme}" (ID : ${args.id}) a maintenant une quantité de ${args.new_quantity}.`}],
+                content: [{ type:"text", text:`Succès : l'article "${result.rows[0].name}" (ID : ${args.id}) a maintenant une quantité de ${args.new_quantity}.`}],
             };
             
         } catch (error) {
