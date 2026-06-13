@@ -45,11 +45,11 @@ cd local-db-commander
 npm install
 
 
-3. Lancer la base de données PostgreSQL
+### 3. Lancer la base de données PostgreSQL
 Le projet inclut un fichier docker-compose.yml préconfiguré (Port local : 5431).
 
 
-Intégration avec Claude Desktop
+### 4. Intégration avec Claude Desktop
 Pour connecter ce serveur à votre application Claude Desktop, ajoutez la configuration suivante dans votre fichier claude_desktop_config.json :
 
     ⚠️ Important (Windows) : Remplacez les chemins ci-dessous par les chemins absolus correspondants à votre machine.
@@ -66,5 +66,5 @@ Pour connecter ce serveur à votre application Claude Desktop, ajoutez la config
 }
 
 
-Redémarrage
+### 5. Redémarrage
 Quittez complètement Claude Desktop (via l'icône dans la barre des tâches) et relance-zle. Les icônes d'outils et de prompts apparaîtront dans vos conversations.
