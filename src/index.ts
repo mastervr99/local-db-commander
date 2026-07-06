@@ -139,7 +139,7 @@ server.registerTool(
                 : "";
 
             return {
-                content: [{ type: "text", text: `Voici le contenu actuel de l'inventaire :\n${textList}`}],
+                content: [{ type: "text", text: `Voici le contenu actuel de l'inventaire :\n${textList}${metadata}${paginationHint}`}],
             };
             
         } catch (error) {
