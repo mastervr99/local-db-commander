@@ -7,10 +7,10 @@ export function registerListItemsTool (server: McpServer, pool: Pool) {
     server.registerTool(
         "list_items",
         {
-            description: "Afficher la liste de tous les éléments de l'inventaire",
+            description: "Afficher la liste de tous les éléments de l'inventaire avec une pagination",
             inputSchema: z.object({
                 page:z.number().int().positive().optional().default(1).describe("Numéro de la page à afficher"),
-                limit: z.number().int().positive().max(50).optional().default(10).describe("Nombre maximum d'éléments à afficher par page (Max 50)"),
+                limit: z.number().int().positive().max(50).optional().default(10).describe("Nombre d'éléments à afficher par page"),
             }),
         },
         async (args) => {
