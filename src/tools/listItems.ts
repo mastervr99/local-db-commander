@@ -52,9 +52,21 @@ export function registerListItemsTool (server: McpServer, pool: Pool) {
             } catch (error) {
                 console.error("Erreur SQL lors de la lecture de la base de donnée", error);
 
-                return {
-                    content: [{ type:"text", text: `Erreur lors de la lecture SQL : ${(error as Error).message}` }]
-                };
+                if(error instanceof Error){
+                    return {
+                        content: [{
+                            type:"text",
+                            text:`Erreur lors de la lecture SQL : ${error.message}`
+                        }]
+                    }
+                } else {
+                    return {
+                        content: [{
+                            type:"text",
+                            text:`Erreur lors de la lecture SQL : ${error}`
+                        }]
+                    }
+                }
             }
         } 
     );

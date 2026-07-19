@@ -37,8 +37,20 @@ export function registerUpdateStockTool (server: McpServer, pool: Pool){
             } catch (error) {
                 console.error(`Error de la mise à jour SQL`, error);
 
-                return {
-                    content: [{ type:"text", text:`Erreur SQL lors de la modification : ${(error as Error).message}` }],
+                if(error instanceof Error){
+                    return {
+                        content: [{
+                            type:"text",
+                            text:`Erreur SQL lors de la modification : ${error.message}`
+                        }]
+                    }
+                } else {
+                    return {
+                        content: [{
+                            type:"text",
+                            text:`Erreur SQL lors de la modification : ${error}`
+                        }]
+                    }
                 }
             }
         }

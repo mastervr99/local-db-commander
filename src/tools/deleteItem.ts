@@ -37,8 +37,20 @@ export function registerDeleteItemTool ( server: McpServer, pool: Pool){
             } catch (error) {
                 console.error(`Erreur lors de la suppresion SQL`);
 
-                return {
-                    content: [{ type:"text", text:`Erreur SQL lors de la suppression : ${(error as Error).message}]` }]
+                if(error instanceof Error){
+                    return {
+                        content: [{
+                            type:"text",
+                            text:`Erreur SQL lors de la suppression : ${error.message} `
+                        }]
+                    }
+                } else {
+                    return {
+                        content: [{
+                            type:"text",
+                            text:`Erreur SQL lors de la suppression : ${(error)} `
+                        }]
+                    }
                 }
             }
         }
