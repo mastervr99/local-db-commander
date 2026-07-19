@@ -8,6 +8,7 @@ import { registerAddItemTool } from "./tools/addItem.js";
 import { registerListItemsTool } from "./tools/listItems.js";
 import { registerUpdateStockTool } from "./tools/updateStock.js";
 import { registerDeleteItemTool } from "./tools/deleteItem.js";
+import { registerSandboxedQueryTool } from "./tools/sandboxedQuery.js";
 
 import { registerAuditInventoryPrompt } from "./prompts/auditInventory.js";
 
@@ -33,6 +34,7 @@ registerUpdateStockTool(server, pool);
 registerDeleteItemTool(server, pool);
 registerAuditInventoryPrompt(server);
 registerDatabaseSchemaResource(server);
+registerSandboxedQueryTool(server);
 
 
 
