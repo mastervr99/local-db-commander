@@ -70,20 +70,13 @@ export function registerSandboxedQueryTool (server: McpServer) {
                     }
                 }
 
-                if(error instanceof Error){
-                    return {
-                        content: [{
-                            type:"text",
-                            text:`Erreur d'exécution de la sandbox : ${error.message}`
-                        }]
-                    }
-                } else {
-                    return {
-                        content: [{
-                            type:"text",
-                            text:`Erreur d'exécution de la sandbox : ${error}`
-                        }]
-                    }
+                const error_message = error instanceof Error ? error.message : String(error);
+
+                return {
+                    content: [{
+                        type:"text",
+                        text:`Erreur d'exécution de la sandbox : ${error_message}`
+                    }]
                 }
 
             }

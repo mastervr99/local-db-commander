@@ -26,21 +26,15 @@ export function registerAddItemTool (server: McpServer, pool: Pool) {
 
             } catch(error) {
 
-                if(error instanceof Error){
-                    return {
-                        content: [{
-                            type:"text",
-                            text:`Erreur SQL : ${error.message} `
-                        }]
-                    }
-                } else {
-                    return {
-                        content: [{
-                            type:"text",
-                            text:`Erreur SQL : ${error} `
-                        }]
-                    }
+                const error_message = error instanceof Error ? error.message : String(error);
+
+                return {
+                    content: [{
+                        type:"text",
+                        text:`Erreur SQL : ${error_message} `
+                    }]
                 }
+
             }
         }
     );
