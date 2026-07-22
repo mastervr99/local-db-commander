@@ -1,10 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { z } from "zod";
-import { execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
-
+import { runQueryInSandbox } from "../utils/runQueryInSandbox.js";
 export function registerSandboxedQueryTool (server: McpServer) {
     server.registerTool(
         "execute_sandboxed_query",
@@ -19,63 +15,23 @@ export function registerSandboxedQueryTool (server: McpServer) {
             try {
                 console.error("Alerte Sécurité : Réception d'une requête SQL. Analyse du contenu...");
 
-                const upperQuery = args.sql_command.toUpperCase();
+                const result_query = await runQueryInSandbox(args.sql_command);
 
-                if(upperQuery.includes("DROP DATABASE") || upperQuery.includes("DROP TABLE")){
-                    return {
-                        content: [{
-                            type: "text",
-                            text: "Bocage Gatekeeper : Tentative de destruction de la structure détectée. Action annulée"
-                        }]
-                    }
-                }
-
-                const command = "docker";
-                const command_arguments = [
-                    "exec",
-                    "mcp_postgres_db",
-                    "psql",
-                    "-U","admin",
-                    "-d","inventory_db",
-                    "-c", args.sql_command
-                ];
-
-                const { stdout, stderr } = await execFileAsync(command, command_arguments, { timeout: 3000 }); 
-
-                if(stderr){
-                    return {
-                        content: [{
-                            type:"text",
-                            text:`Sandbox Stderr: ${stderr}`
-                        }]
-                    }
-                }
 
                 return {
                     content: [{
                         type:"text",
-                        text:`Exécution réussie de la requête dans le sandbox isolé. \nRésultat: \n${stdout}`
+                        text:`Exécution réussie de la requête dans le sandbox isolé. \nRésultat: \n${result_query}`
                     }]
                 }
                 
             } catch (error: any) {
                 console.error("Erreur ou échec d'isolation dans la sandbox");
-                
-                if(error.signal === "SIGTERM"){
-                    return {
-                        content: [{
-                            type:"text",
-                            text:`Erreur: Temps d'exécution de la requête dépassé (3000 ms). La sandbox a été forcé de s'arrêter.`
-                        }]
-                    }
-                }
-
-                const error_message = error instanceof Error ? error.message : String(error);
 
                 return {
                     content: [{
                         type:"text",
-                        text:`Erreur d'exécution de la sandbox : ${error_message}`
+                        text:`Erreur d'exécution de la sandbox : ${error.message}`
                     }]
                 }
 

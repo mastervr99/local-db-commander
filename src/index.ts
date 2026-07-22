@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import { Pool } from "pg";
 
 import { registerAddItemTool } from "./tools/addItem.js";
@@ -28,10 +27,10 @@ const server = new McpServer({
     version: "1.0.0",
 });
 
-registerAddItemTool(server, pool);
+registerAddItemTool(server);
 registerListItemsTool(server, pool);
 registerUpdateStockTool(server, pool);
-registerDeleteItemTool(server, pool);
+registerDeleteItemTool(server);
 registerAuditInventoryPrompt(server);
 registerDatabaseSchemaResource(server);
 registerSandboxedQueryTool(server);

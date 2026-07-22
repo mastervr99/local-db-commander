@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { z } from "zod";
-import { Pool } from "pg";
+import { runQueryInSandbox } from "../utils/runQueryInSandbox.js";
 
-export function registerAddItemTool (server: McpServer, pool: Pool) {
+export function registerAddItemTool (server: McpServer) {
     server.registerTool(
         "add_item",
         {
@@ -15,23 +15,23 @@ export function registerAddItemTool (server: McpServer, pool: Pool) {
         async (args) => {
             try {
 
-                await pool.query(
-                    "INSERT INTO inventory (name, quantity) VALUES ($1, $2)",
-                    [args.name, args.quantity]
-                );
+                const safename = args.name.replace(/'/g,"''");
+
+                const sql_command = `INSERT INTO inventory (name, quantity) VALUES ('${safename}', ${args.quantity})`;
+
+                await runQueryInSandbox(sql_command);
 
                 return {
                     content: [{ type: "text", text: `Succès : ajout de l'article ${args.name} avec ${args.quantity} unités effectué dans l'inventaire.` }],
                 };
 
-            } catch(error) {
-
-                const error_message = error instanceof Error ? error.message : String(error);
+            } catch(error: any) {
+                console.error(`Erreur lors de l'ajout dans l'inventaire.`);
 
                 return {
                     content: [{
                         type:"text",
-                        text:`Erreur SQL : ${error_message} `
+                        text:`Erreur SQL : ${error.message} `
                     }]
                 }
 

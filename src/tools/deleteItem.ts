@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { z } from "zod";
-import { Pool } from "pg";
+import { runQueryInSandbox } from "../utils/runQueryInSandbox.js";
 
-export function registerDeleteItemTool ( server: McpServer, pool: Pool){
+export function registerDeleteItemTool ( server: McpServer){
 
     server.registerTool(
         "delete_item",
@@ -16,22 +16,20 @@ export function registerDeleteItemTool ( server: McpServer, pool: Pool){
             try {
                 
                 console.error(`Suppression définitve demandé pour l'article [ID: ${args.id}] du stock`);
+
+                const sql_command = `DELETE FROM inventory WHERE id = ${args.id} RETURNING *`;
+
+                const stdout = runQueryInSandbox(sql_command);
     
-                const data_delete_item_result = await pool.query(
-                    "DELETE FROM inventory WHERE id = $1 RETURNING *",
-                    [args.id]
-                );
-    
-                if(data_delete_item_result.rows.length === 0){
+                if((await stdout).includes("(0 rows)")){
                     return {
-                        content: [{ type: "text", text:`Erreur : impossible de supprimer. Aucun article avec l'[ID: ${args.id} n'est présent dans l'inventaire]`}]
+                        content: [{ type: "text", text:`Erreur : impossible de supprimer. Aucun article avec l'ID ${args.id} n'est pas présent dans l'inventaire`}]
                     }
                 }
     
-                const deleted_item = data_delete_item_result.rows[0];
     
                 return {
-                    content: [{ type:"text", text:`Succès : l'article ${deleted_item.name} [ID: ${deleted_item.id}] a bien été supprimé de l'inventaire` }]
+                    content: [{ type:"text", text:`Succès : l'article [ID: ${args.id}] a bien été supprimé de l'inventaire./nRésultat :/n ${stdout}` }]
                 }
 
             } catch (error) {
