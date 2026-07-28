@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { z } from "zod";
-import { Pool } from "pg";
+import { runQueryInSandbox } from "../utils/runQueryInSandbox.js";
 
-export function registerUpdateStockTool (server: McpServer, pool: Pool){
+export function registerUpdateStockTool (server: McpServer){
 
     server.registerTool(
         "update_stock",
@@ -17,32 +17,28 @@ export function registerUpdateStockTool (server: McpServer, pool: Pool){
             try {
                 console.error(`Mise à jour de la quantité en stocke de l'article ID: ${args.id} (Nouvelle quantité : ${args.quantity})`);
 
-                const data_update_item_result = await pool.query(
-                    "UPDATE inventory SET quantity = $1 WHERE id = $2 RETURNING *",
-                    [args.quantity, args.id]
-                );
+                const sql_command = `UPDATE inventory SET quantity = ${args.quantity} WHERE id = ${args.id} RETURNING *`;
+                const stdout = await runQueryInSandbox(sql_command);
 
-                if(data_update_item_result.rows.length === 0){
+
+                if(stdout.includes("0 rows")){
                     return {
                         content: [{ type:"text", text:`Erreur : aucun article avec l'ID ${args.id} n'est enregistré dans l'inventaire. Souhaitez-vous l'ajouter maintenant ?`}]
                     }
                 }
 
-                const updated_item = data_update_item_result.rows[0];
 
                 return {
-                    content: [{ type: "text", text:`Succès : le stock de l'article ${updated_item.name} [ID: ${updated_item.id}] a été mis à jour à ${updated_item.quantity} unités.` }]
+                    content: [{ type: "text", text:`Succès : le stock de l'article [ID: ${args.id}] a été mis à jour à ${args.quantity} unités.` }]
                 }
 
-            } catch (error) {
+            } catch (error:any) {
                 console.error(`Error de la mise à jour SQL`, error);
-
-                const error_message = error instanceof Error ? error.message : String(error);
 
                 return {
                     content: [{
                         type:"text",
-                        text:`Erreur SQL lors de la modification : ${error_message}`
+                        text:`Erreur SQL lors de la modification : ${error.message}`
                     }]
                 }
             }

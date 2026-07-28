@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
-import { number, z } from "zod";
+import { z } from "zod";
 import { runQueryInSandbox } from "../utils/runQueryInSandbox.js";
 
 export function registerListItemsTool (server: McpServer) {
@@ -52,7 +52,7 @@ export function registerListItemsTool (server: McpServer) {
 
                 const items_only_array = (items_array || []).filter((item): item is { id: number, name: string, quantity: number } => item !== null);
 
-                const response_text = items_only_array ? items_only_array
+                const response_text = items_only_array.length > 0 ? items_only_array
                 .map((item) => `- [ID: ${item.id}] ${item.name} (Quantité: ${item.quantity})`)
                 .join("\n") : "Aucun article n'est présent dans l'inventaire. Souhaitez-vous en ajouter ?";
 

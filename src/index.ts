@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { Pool } from "pg";
 
 import { registerAddItemTool } from "./tools/addItem.js";
 import { registerListItemsTool } from "./tools/listItems.js";
@@ -14,14 +13,6 @@ import { registerAuditInventoryPrompt } from "./prompts/auditInventory.js";
 import { registerDatabaseSchemaResource } from "./ressources/databaseSchema.js";
 
 
-const pool = new Pool({
-    user: "admin",
-    host: "localhost",
-    database: "inventory_db",
-    password: "password123",
-    port: 5431,
-});
-
 const server = new McpServer({
     name: "local-db-commander",
     version: "1.0.0",
@@ -29,7 +20,7 @@ const server = new McpServer({
 
 registerAddItemTool(server);
 registerListItemsTool(server);
-registerUpdateStockTool(server, pool);
+registerUpdateStockTool(server);
 registerDeleteItemTool(server);
 registerAuditInventoryPrompt(server);
 registerDatabaseSchemaResource(server);
