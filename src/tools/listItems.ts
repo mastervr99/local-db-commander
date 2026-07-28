@@ -1,16 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
-import { z } from "zod";
-import { Pool } from "pg";
+import { number, z } from "zod";
+import { runQueryInSandbox } from "../utils/runQueryInSandbox.js";
 
-export function registerListItemsTool (server: McpServer, pool: Pool) {
+export function registerListItemsTool (server: McpServer) {
 
     server.registerTool(
         "list_items",
         {
             description: "Afficher la liste de tous les éléments de l'inventaire avec une pagination",
             inputSchema: z.object({
-                page:z.number().int().positive().optional().default(1).describe("Numéro de la page à afficher"),
-                limit: z.number().int().positive().max(50).optional().default(10).describe("Nombre d'éléments à afficher par page"),
+                page:z.number().int().positive().optional().describe("Numéro de la page à afficher"),
+                limit: z.number().int().positive().max(50).optional().default(10).describe("Nombre maximum d'éléments à afficher par page (Défaut: 10, Maximum:50)"),
             }),
         },
         async (args) => {
@@ -18,29 +18,46 @@ export function registerListItemsTool (server: McpServer, pool: Pool) {
                 
                 console.error(`Lecture de l'inventaire suite à la demande de l'IA (Page : ${args.page}, Limite : ${args.limit})`);
 
-                const offset = (args.page - 1) * args.limit;
+                const page_number = args.page ?? 1;
+                const items_limit_per_page = args.limit ?? 10;
 
-                const data_items_list = await pool.query(
-                    "SELECT * FROM inventory ORDER BY name ASC LIMIT $1 OFFSET $2",
-                    [args.limit, offset]
-                );
+                const offset = (page_number - 1) * items_limit_per_page;
 
-                const data_items_count = await pool.query("SELECT COUNT(*) FROM inventory");
-                const total_items = parseInt(data_items_count.rows[0].count, 10);
-                const total_pages = total_items / args.limit;
+                
+                const item_count_sql_command = "SELECT COUNT(*) FROM inventory";
+                
+                const item_count_stdout = await runQueryInSandbox(item_count_sql_command);
+                
+                const item_count_match = item_count_stdout.match(/\d+/);
+                
+                const total_items_count = item_count_match ? parseInt(item_count_match[0],10) : 0;
+                
+                const total_pages = Math.ceil(total_items_count / items_limit_per_page) || 1;
+                
 
-                if(data_items_list.rows.length === 0) {
-                    return {
-                        content: [{ type: "text", text: "Il n'y actuellement aucun article dans l'inventaire. Souhaitez-vous en ajouter ?" }]
-                    };
+                const sql_command = `SELECT json_agg(t) FROM (SELECT id,name,quantity FROM inventory ORDER BY name ASC LIMIT ${items_limit_per_page} OFFSET ${offset}) t;`;
+
+                const stdout = await runQueryInSandbox(sql_command);
+
+                const stdout_array_text = stdout.match(/\[.*\]/s);
+
+                let items_array: Array<{id: number, name: string, quantity: number} | null > = [];
+
+
+                if(stdout_array_text){
+                    const clean_stdout_array_text = stdout_array_text[0].replace(/\+\s*\n?/g, "");
+                    items_array = JSON.parse(clean_stdout_array_text); 
                 }
 
-                const response_text = data_items_list.rows
-                .map((item) => `- [ID: ${item.id}] ${item.name} (Quantité: ${item.quantity})`)
-                .join("\n");
 
-                const metadata = `\n\n[Page ${args.page}/${total_pages}. Nombre total d'articles : ${total_items}]`;
-                const pagination = args.page < total_pages ?
+                const items_only_array = (items_array || []).filter((item): item is { id: number, name: string, quantity: number } => item !== null);
+
+                const response_text = items_only_array ? items_only_array
+                .map((item) => `- [ID: ${item.id}] ${item.name} (Quantité: ${item.quantity})`)
+                .join("\n") : "Aucun article n'est présent dans l'inventaire. Souhaitez-vous en ajouter ?";
+
+                const metadata = `\n\n[Page ${page_number}/${total_pages}. Nombre total d'articles : ${total_items_count}]`;
+                const pagination = page_number < total_pages ?
                 "\n(Note : Il reste d'autres articles disponibles. Demande explicitiement si tu souhaites regarder la suite des articles.)"
                 : "";
 
@@ -49,15 +66,13 @@ export function registerListItemsTool (server: McpServer, pool: Pool) {
                 };
 
 
-            } catch (error) {
+            } catch (error:any) {
                 console.error("Erreur SQL lors de la lecture de la base de donnée", error);
 
-                const error_message = error instanceof Error ? error.message : String(error);
-                
                 return {
                     content: [{
                         type:"text",
-                        text:`Erreur lors de la lecture SQL : ${error_message}`
+                        text:`Erreur lors de la lecture SQL : ${error.message}`
                     }]
                 }
             }

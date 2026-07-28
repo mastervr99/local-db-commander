@@ -28,7 +28,7 @@ const server = new McpServer({
 });
 
 registerAddItemTool(server);
-registerListItemsTool(server, pool);
+registerListItemsTool(server);
 registerUpdateStockTool(server, pool);
 registerDeleteItemTool(server);
 registerAuditInventoryPrompt(server);
