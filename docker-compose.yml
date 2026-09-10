@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres-mcp:
     image: postgres:16-alpine
@@ -18,11 +16,27 @@ services:
     container_name: mcp_server
     ports: 
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password123@postgres-mcp:5432/inventory_db
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - postgres-mcp
     restart: always
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: always 
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -30,9 +44,14 @@ services:
     ports:
       - "3000:8080"
     environment:
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENABLE_FUNCTION_CALLING=True
+      - FUNCTION_CALLING_ENGINE=ollama
+      - ENABLE_MCP=True
+      - DEBUG=True
+    depends_on:
+      - ollama
+      - mcp-server
     volumes:
       - open_webui_data:/app/backend/data
     restart: always
@@ -40,3 +59,4 @@ services:
 volumes:
   postgres_data:
   open_webui_data:
+  ollama_data:
