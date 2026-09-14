@@ -14,7 +14,6 @@ import { registerDatabaseSchemaResource } from "./ressources/databaseSchema.js";
 
 const PORT = Number(process.env.PORT) || 8000;
 
-// 1. Instance unique du serveur MCP
 const server = new McpServer({
   name: "postgres-mcp",
   version: "1.0.0",
@@ -40,16 +39,68 @@ app.use(
 app.use(express.json());
 
 app.use((req, _res, next) => {
-  console.log(`[HTTP REQ] \({req.method}\){req.path}`);
+  console.log(`[HTTP REQ] (\({req.method})\){req.path}`);
   next();
 });
 
 const activeSessions = new Set();
 
 function getRegisteredTools(): { [key: string]: any } {
-  const rawTools = (server as any)._registeredTools || (server as any)._tools || {};
+  const rawTools =
+    (server as any)._registeredTools || (server as any)._tools || {};
+
+  if (rawTools instanceof Map) {
+    const toolsObj: { [key: string]: any } = {};
+    for (const [key, value] of rawTools.entries()) {
+      toolsObj[key] = value;
+    }
+    return toolsObj;
+  }
+
   return rawTools as { [key: string]: any };
 }
+
+// Registre explicite des schémas JSON pour contourner le stockage interne encapsulé du SDK
+const explicitToolSchemas: { [key: string]: any } = {
+  update_stock: {
+    type: "object",
+    properties: {
+      id: { type: "number", description: "Id de l'article dont la quantité en stock doit être mise à jour" },
+      quantity: { type: "number", description: "Nouvelle quantité de l'article à enregistrer dans l'inventaire" }
+    },
+    required: ["id", "quantity"]
+  },
+  list_items: {
+    type: "object",
+    properties: {
+      page: { type: "number", description: "Numéro de page pour la pagination" },
+      limit: { type: "number", description: "Nombre d'éléments par page" }
+    }
+  },
+  add_item: {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Nom de l'article" },
+      quantity: { type: "number", description: "Quantité en stock" },
+      price: { type: "number", description: "Prix de l'article" }
+    },
+    required: ["name", "quantity", "price"]
+  },
+  delete_item: {
+    type: "object",
+    properties: {
+      id: { type: "number", description: "ID de l'article à supprimer" }
+    },
+    required: ["id"]
+  },
+  execute_sandboxed_query: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Requête SQL à exécuter" }
+    },
+    required: ["query"]
+  }
+};
 
 async function handleStatelessRequest(body: any) {
   const { method, params, id } = body || {};
@@ -80,7 +131,10 @@ async function handleStatelessRequest(body: any) {
     };
   }
 
-  if (method === "notifications/initialized" || method?.startsWith("notifications/")) {
+  if (
+    method === "notifications/initialized" ||
+    method?.startsWith("notifications/")
+  ) {
     return { response: null, sessionId: undefined };
   }
 
@@ -97,18 +151,26 @@ async function handleStatelessRequest(body: any) {
 
     for (const [name, toolObj] of Object.entries(registeredTools)) {
       const tool = toolObj as any;
-      const description = tool?.description || tool?.metadata?.description || "";
-      const parameters = tool?.parameters || tool?.inputSchema || tool?.schema || { type: "object", properties: {} };
+      const description =
+        tool?.description ||
+        tool?.config?.description ||
+        tool?.inputSchema?.description ||
+        "";
+
+      // Utilisation directe du registre explicite garanti
+      const formattedSchema = explicitToolSchemas[name] || { type: "object", properties: {} };
 
       toolList.push({
         name,
         description,
-        inputSchema: parameters,
-        parameters: parameters, // Compatibilité double : MCP (inputSchema) & Open WebUI / OpenAI (parameters)
+        inputSchema: formattedSchema,
       });
     }
 
-    console.log(`[MCP] ${toolList.length} outil(s) envoyé(s) :`, toolList.map(t => t.name));
+    console.log(
+      `[MCP tools/list] Schémas générés :\n`,
+      JSON.stringify(toolList, null, 2)
+    );
 
     return {
       response: { jsonrpc: "2.0", id: reqId, result: { tools: toolList } },
@@ -118,13 +180,17 @@ async function handleStatelessRequest(body: any) {
 
   if (method === "tools/call") {
     const toolName = params?.name;
-    console.log(`[MCP] Demande d'exécution de l'outil : ${toolName}`);
+    const toolArgs = params?.arguments || {};
+
+    console.log(
+      `[MCP] Exécution de l'outil ${toolName} avec arguments :`,
+      JSON.stringify(toolArgs)
+    );
 
     const registeredTools = getRegisteredTools();
     const toolObj = registeredTools[toolName] as any;
 
     if (!toolObj) {
-      console.error(`[MCP] Erreur : Outil non trouvé -> ${toolName}`);
       return {
         response: {
           jsonrpc: "2.0",
@@ -137,16 +203,22 @@ async function handleStatelessRequest(body: any) {
 
     try {
       let result;
-      const toolArgs = params?.arguments || {};
+      const fn =
+        toolObj.execute ||
+        toolObj.handler ||
+        toolObj.cb ||
+        toolObj.callback ||
+        toolObj.config?.execute ||
+        toolObj.config?.handler ||
+        toolObj.config?.cb ||
+        toolObj.config?.callback;
 
-      if (typeof toolObj.execute === "function") {
-        result = await toolObj.execute(toolArgs);
-      } else if (typeof toolObj.handler === "function") {
-        result = await toolObj.handler(toolArgs);
-      } else if (typeof toolObj.cb === "function") {
-        result = await toolObj.cb(toolArgs);
+      if (typeof fn === "function") {
+        result = await fn(toolArgs);
       } else {
-        throw new Error(`Aucun handler d'exécution valide trouvé pour l'outil ${toolName}`);
+        throw new Error(
+          `Aucune fonction d'exécution trouvée pour l'outil ${toolName}`
+        );
       }
 
       console.log(`[MCP] Succès exécution outil : ${toolName}`);
@@ -160,7 +232,10 @@ async function handleStatelessRequest(body: any) {
         response: {
           jsonrpc: "2.0",
           id: reqId,
-          error: { code: -32603, message: err?.message || "Erreur lors de l'exécution de l'outil" },
+          error: {
+            code: -32603,
+            message: err?.message || "Erreur lors de l'exécution",
+          },
         },
         sessionId: undefined,
       };
@@ -183,8 +258,6 @@ app.get("/mcp", (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  console.log("[MCP SSE] Écouteur connecté.");
-
   const keepAlive = setInterval(() => {
     if (!res.writableEnded) {
       res.write(": keepalive\n\n");
@@ -198,10 +271,14 @@ app.get("/mcp", (req, res) => {
 });
 
 app.post("/mcp", async (req, res) => {
-  const sessionId = (req.query.sessionId as string) || (req.headers["mcp-session-id"] as string);
+  const sessionId =
+    (req.query.sessionId as string) ||
+    (req.headers["mcp-session-id"] as string);
 
   try {
-    const { response, sessionId: newSessionId } = await handleStatelessRequest(req.body);
+    const { response, sessionId: newSessionId } = await handleStatelessRequest(
+      req.body
+    );
     const activeSessionId = newSessionId || sessionId;
 
     if (activeSessionId) {
@@ -224,7 +301,9 @@ app.post("/mcp", async (req, res) => {
 });
 
 app.delete("/mcp", (req, res) => {
-  const sessionId = (req.headers["mcp-session-id"] as string) || (req.query.sessionId as string);
+  const sessionId =
+    (req.headers["mcp-session-id"] as string) ||
+    (req.query.sessionId as string);
   if (sessionId) {
     activeSessions.delete(sessionId);
   }
