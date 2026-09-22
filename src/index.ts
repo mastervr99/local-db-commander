@@ -8,7 +8,6 @@ import { registerAddItemTool } from "./tools/addItem.js";
 import { registerListItemsTool } from "./tools/listItems.js";
 import { registerUpdateStockTool } from "./tools/updateStock.js";
 import { registerDeleteItemTool } from "./tools/deleteItem.js";
-import { registerSandboxedQueryTool } from "./tools/sandboxedQuery.js";
 import { registerAuditInventoryPrompt } from "./prompts/auditInventory.js";
 import { registerDatabaseSchemaResource } from "./ressources/databaseSchema.js";
 
@@ -26,7 +25,6 @@ registerUpdateStockTool(server);
 registerDeleteItemTool(server);
 registerAuditInventoryPrompt(server);
 registerDatabaseSchemaResource(server);
-registerSandboxedQueryTool(server);
 
 const app = express();
 
@@ -39,7 +37,7 @@ app.use(
 app.use(express.json());
 
 app.use((req, _res, next) => {
-  console.log(`[HTTP REQ] (\({req.method})\){req.path}`);
+  console.log(`[HTTP REQ] ${req.method}) ${req.path}`);
   next();
 });
 
@@ -82,9 +80,8 @@ const explicitToolSchemas: { [key: string]: any } = {
     properties: {
       name: { type: "string", description: "Nom de l'article" },
       quantity: { type: "number", description: "Quantité en stock" },
-      price: { type: "number", description: "Prix de l'article" }
     },
-    required: ["name", "quantity", "price"]
+    required: ["name", "quantity"]
   },
   delete_item: {
     type: "object",
@@ -92,13 +89,6 @@ const explicitToolSchemas: { [key: string]: any } = {
       id: { type: "number", description: "ID de l'article à supprimer" }
     },
     required: ["id"]
-  },
-  execute_sandboxed_query: {
-    type: "object",
-    properties: {
-      query: { type: "string", description: "Requête SQL à exécuter" }
-    },
-    required: ["query"]
   }
 };
 
@@ -131,10 +121,7 @@ async function handleStatelessRequest(body: any) {
     };
   }
 
-  if (
-    method === "notifications/initialized" ||
-    method?.startsWith("notifications/")
-  ) {
+  if ( method === "notifications/initialized" || method?.startsWith("notifications/")) {
     return { response: null, sessionId: undefined };
   }
 
@@ -290,6 +277,7 @@ app.post("/mcp", async (req, res) => {
     }
 
     return res.json(response);
+
   } catch (err: any) {
     console.error("[MCP Post] Erreur :", err);
     return res.status(500).json({
