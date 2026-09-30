@@ -34,7 +34,6 @@ export function registerAddItemTool (server: McpServer) {
                         text:`Erreur SQL : ${error.message} `
                     }]
                 }
-
             }
         }
     );
