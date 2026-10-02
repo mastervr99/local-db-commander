@@ -1,49 +1,51 @@
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { Pool, QueryResultRow } from "pg";
 
-const execFileAsync = promisify(execFile);
+export interface QueryResult<T>{
+    rows: T[];
+    rowCount: number | null;
+}
 
-export async function runQueryInSandbox (sql_command: string): Promise<string> {
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    statement_timeout: 3000,
+    connectionTimeoutMillis: 2000
+});
 
-    const upperQuery = sql_command.toUpperCase() ;
 
-    if( upperQuery.includes("DROP DATABASE") || upperQuery.includes("DROP TABLE")){
+export async function runQueryInSandbox<T extends QueryResultRow = QueryResultRow>(sql_command: string, command_parameters: unknown[] = []): Promise<QueryResult<T>> {
 
-        throw new Error("BLOCAGE GATEKEEPER : Tentative de destruction de la structure détectée. Action Annulée");
+    if(!sql_command || typeof sql_command !== "string"){
+        throw new Error(
+            "BLOCAGE GATEKEEPER : La requête SQL n'est pas une chaîne valide"
+        );
     }
-
-    const command = "docker";
-    const command_arguments = [
-        "exec",
-        "mcp_postgres_db",
-        "psql",
-        "-U","admin",
-        "-d","inventory_db",
-        "-c",sql_command
-    ];
 
     try {
         
-        const { stdout, stderr } = await execFileAsync(command,command_arguments,{timeout:3000});
-    
-        if(stderr){
-            throw new Error(`Sandbox Stderr: ${stderr}`);
-        }
-    
-        return stdout;
-
-    } catch (error:any) {
+        const result = await pool.query<T>(sql_command, command_parameters);
         
-        if(error.signal === "SIGTERM"){
-            throw new Error("Erreur : Temps d'exécution de la rêquete brute dépassée (3000 ms). Le Sandbox a été forcé à s'arrêter.");
+        return {
+            rows: result.rows,
+            rowCount: result.rowCount
         }
-        
 
-        if(error instanceof Error){
-            throw error;
-        } else {
-            throw new Error(String(error));
+    } catch (error:unknown) {
+        
+        const pgError = error as {
+            code?: string;
+            message?: string;
         }
+
+        if(pgError.code == "57014"){
+            throw new Error(
+                "Erreur : Temps d'exécution de la requête SQL dépassé (3000). L'opération a été annulé."
+            );
+        }
+
+        throw new Error(
+            `Erreur SQL Sandboxe : ${ pgError.message ?? "Erreur SQL inconnue"}`
+        );
+    
     }
 
 }

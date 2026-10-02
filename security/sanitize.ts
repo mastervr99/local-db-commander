@@ -6,7 +6,7 @@ export const list_items_schema = z.object({
     .int('La limite doit être un entier')
     .min(1,{message:'la limite minimale est de 1'})
     .max(100,{message:'la limite maximale est de 100'})
-    .default(50)
+    .default(20)
     .describe("Nombre maximum d'éléments à afficher par page"),
     page:z
     .number()
