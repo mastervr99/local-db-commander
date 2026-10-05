@@ -11,6 +11,9 @@ import { registerDeleteItemTool } from "./tools/deleteItem.js";
 import { registerAuditInventoryPrompt } from "./prompts/auditInventory.js";
 import { registerDatabaseSchemaResource } from "./ressources/databaseSchema.js";
 
+import { TOOL_SCHEMAS } from "../security/sanitize.js";
+import { zodToJsonSchema} from "zod-to-json-schema";
+
 const PORT = Number(process.env.PORT) || 8000;
 
 const server = new McpServer({
@@ -59,38 +62,20 @@ function getRegisteredTools(): { [key: string]: any } {
 }
 
 // Registre explicite des schémas JSON pour contourner le stockage interne encapsulé du SDK
-const explicitToolSchemas: { [key: string]: any } = {
-  update_stock: {
-    type: "object",
-    properties: {
-      id: { type: "number", description: "Id de l'article dont la quantité en stock doit être mise à jour" },
-      quantity: { type: "number", description: "Nouvelle quantité de l'article à enregistrer dans l'inventaire" }
-    },
-    required: ["id", "quantity"]
+const explicitToolSchemas: Record<string, any> = Object.entries(TOOL_SCHEMAS).reduce(
+  (acc, [name, zodSchema])=>{
+    const raw_json_schema = zodToJsonSchema(zodSchema, {
+      $refStrategy: "none",
+    });
+
+    const { $schema, ...clean_json_schema } = raw_json_schema as Record<string, any>;
+
+    acc[name] = clean_json_schema;
+
+    return acc;
   },
-  list_items: {
-    type: "object",
-    properties: {
-      page: { type: "number", description: "Numéro de page pour la pagination" },
-      limit: { type: "number", description: "Nombre d'éléments par page" }
-    }
-  },
-  add_item: {
-    type: "object",
-    properties: {
-      name: { type: "string", description: "Nom de l'article" },
-      quantity: { type: "number", description: "Quantité en stock" },
-    },
-    required: ["name", "quantity"]
-  },
-  delete_item: {
-    type: "object",
-    properties: {
-      id: { type: "number", description: "ID de l'article à supprimer" }
-    },
-    required: ["id"]
-  }
-};
+  {} as Record<string, any>
+);
 
 async function handleStatelessRequest(body: any) {
   const { method, params, id } = body || {};
