@@ -20,7 +20,7 @@ export function registerListItemsTool(server: McpServer){
             inputSchema: list_items_schema
         },
         async(args) => {
-            const sanitized_input_data = await sanitize_input("list_items",args);
+            const sanitized_input_data = sanitize_input("list_items", args);
 
             if(!sanitized_input_data.success || !sanitized_input_data.data){
                 return {
@@ -42,7 +42,7 @@ export function registerListItemsTool(server: McpServer){
                 );
     
                 const items_total_count = data_items_count.rows[0] ? parseInt(data_items_count.rows[0].count, 10) : 0;
-                const pages_total_count = Math.ceil(items_total_count / limit );
+                const pages_total_count = Math.ceil(items_total_count / limit ) || 1;
     
                 if( page > pages_total_count){
                     return {
@@ -58,7 +58,7 @@ export function registerListItemsTool(server: McpServer){
                 const offset = (page - 1) * limit;
     
                 const data_items = await runQueryInSandbox<ItemsRow>(
-                    "SELECT id,name,quantity FROM inventory  LIMIT $1 OFFSET $2",
+                    "SELECT id,name,quantity FROM inventory ORDER BY name ASC LIMIT $1 OFFSET $2",
                     [limit, offset]
                 );
     
@@ -91,12 +91,10 @@ export function registerListItemsTool(server: McpServer){
                 );
 
                 return {
-                content: [
-                    {
-                    type: "text",
-                    text: `Erreur lors de la lecture SQL : ${errorMessage}`,
-                    },
-                ],
+                    content: [{
+                        type: "text",
+                        text: `Erreur lors de la lecture SQL : ${errorMessage}`,
+                    }],
                 };
 
             }
