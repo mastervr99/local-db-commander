@@ -41,7 +41,7 @@ export function registerAddItemTool (server: McpServer) {
                     content: [{ type: "text", text: `Succès : ajout de l'article ${name} avec ${quantity} unités effectué dans l'inventaire avec l'[ID: ${inserted_item_id}].` }],
                 };
 
-            } catch(error: any) {
+            } catch(error: unknown) {
 
                 const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
 
