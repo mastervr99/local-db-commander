@@ -13,7 +13,7 @@ export function registerAddItemTool (server: McpServer) {
             description: "Ajouter un nouvel article dans l'inventaire",
             inputSchema: add_item_schema,
         },
-        async (args) => {
+        async(args) => {
             try {
 
                 const sanitized_input_data = sanitize_input("add_item", args);
